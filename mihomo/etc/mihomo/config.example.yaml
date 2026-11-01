@@ -232,11 +232,11 @@ FilterOT: &FilterOT '^(?!.*(香港|🇭🇰|HK|Hong|台湾|台灣|TW|Taiwan|TPE|
 proxy-groups:
   # ---------- 总入口 ----------
   # MATCH 兜底目标。名字沿用 Proxy，是为了不让 cache.db 里的历史选择失效。
-  - {name: "Proxy", type: select, proxies: [自动选择, 手动选择, 故障转移, 香港策略, 台湾策略, 日本策略, 新加坡策略, 美国策略, 其他策略, 直连]}
+  - {name: "Proxy", type: select, proxies: [手动选择, 自动选择, 故障转移, 香港策略, 台湾策略, 日本策略, 新加坡策略, 美国策略, 其他策略, GCP, 直连]}
 
   # ---------- 自动 / 手动 ----------
-  - {name: "手动选择", type: select, include-all: true, filter: *FilterAL}
-  - {name: "自动选择", <<: *BaseUT, hidden: false, include-all: true, filter: *FilterAL}
+  - {name: "手动选择", type: select, include-all: true, filter: *FilterAL, exclude-filter: 'GCP-Reality'}
+  - {name: "自动选择", <<: *BaseUT, hidden: false, include-all: true, filter: *FilterAL, exclude-filter: 'GCP-Reality'}
 
   # 故障转移：按「地区自动」顺序逐个试，第一个活着的不一定是延迟最低的，
   # 但整组节点全挂时会自动往后切，避免单点故障直接断网。
@@ -262,7 +262,12 @@ proxy-groups:
   - {name: "日本策略", type: select, include-all: true, filter: *FilterJP, proxies: [日本自动]}
   - {name: "新加坡策略", type: select, include-all: true, filter: *FilterSG, proxies: [新加坡自动]}
   - {name: "美国策略", type: select, include-all: true, filter: *FilterUS, proxies: [美国自动]}
-  - {name: "其他策略", type: select, include-all: true, filter: *FilterOT}
+  - {name: "其他策略", type: select, include-all: true, filter: *FilterOT, exclude-filter: 'GCP-Reality'}
+
+  # ---------- 免费节点（独立入口） ----------
+  # 延迟极低（实测 0.08s），但会间歇性 "REALITY authentication failed"，
+  # 所以不参与自动优选，只在这里手动切；Proxy 里也留了一个入口。
+  - {name: "GCP", type: select, proxies: [GCP-Reality-443]}
 
   # ---------- 地区自动（hidden，实现细节） ----------
   - {name: "香港自动", <<: *BaseUT, include-all: true, filter: *FilterHK}
@@ -424,6 +429,12 @@ rules:
   # 中国境内域名/IP 直连，提高访问速度
   - RULE-SET,domestic_non_ip,DIRECT
   - RULE-SET,direct_non_ip,DIRECT
+  # ---- DeepSeek：国内服务，直连 ----
+  # sukka 的 domestic / direct / ai 三个列表都没有 deepseek；Loyalsoldier 的
+  # direct.txt 里有 +.deepseek.com 与 +.deepseeksvc.com。不显式加规则的话，
+  # api.deepseek.com 会一路落到 MATCH → Proxy（实测日志里就是 match Match/）。
+  - DOMAIN-SUFFIX,deepseek.com,DIRECT
+  - DOMAIN-SUFFIX,deepseeksvc.com,DIRECT
   - RULE-SET,apple_cn_non_ip,DIRECT
   # ---- Apple Music：锁定中国大陆 storefront ----
   # Apple 依据「出口 IP 归属地」选择 storefront。music.apple.com 原本被

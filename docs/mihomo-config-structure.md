@@ -86,7 +86,8 @@ Proxy（总入口，MATCH 目标）
 ├── 手动选择        select,    include-all + FilterAL
 ├── 故障转移        fallback → 香港自动 / 日本自动 / 新加坡自动 / 美国自动 / 其他策略 / 直连
 ├── 香港策略/台湾策略/日本策略/新加坡策略/美国策略    select，默认选该地区的「自动」组
-├── 其他策略        select，不属上面任何地区的节点（韩国、欧洲、南美…以及 GCP）
+├── 其他策略        select，不属上面任何地区的节点（韩国、欧洲、南美…）
+├── GCP             免费节点独立入口（不参与自动优选，见下）
 └── 直连
 
 服务组（默认都指 Proxy，可单独改指某地区）：
@@ -103,13 +104,48 @@ Proxy（总入口，MATCH 目标）
 | `include-all: true` + `filter` 正则 | 新增机场/节点零改动接入；节点名里带地区词就自动归组 |
 | `filter` 用的是 Perl 兼容正则（regexp2），支持 `(?=)`/`(?!)` | 正向命中地区 + 反向排除"剩余/到期/官网/客服"等广告节点 |
 | 叶子组 `hidden: true` | 面板只留 12 个需要点的组，测速实现细节不外露 |
-| `proxies` 列表顺序 = 默认值 | `Proxy` 默认「自动选择」；`Apple_Service` 默认「直连」；服务组默认「Proxy」 |
+| `proxies` 列表顺序 = 默认值 | `Proxy` 默认「手动选择」（首个节点是独角兽新加坡）；`Apple_Service` 默认「直连」；服务组默认「Proxy」 |
 | `profile.store-selected: true` | 面板里手选的结果写进 cache.db，重启不回默认值 |
 | `unified-delay: true` | 延迟口径统一（握手 + 首字节），避免 url-test 选到"握手快但首包慢"的节点 |
 | `tolerance: 50` | 延迟差 50ms 以内不切节点，避免抖动导致反复切换 |
 
-`Proxy` 的默认值从「手动选择」改成「自动选择」：缓存里已有历史选择时不受影响，
-但全新 cache（或节点名变动）时不会因为排在第一位的节点失效而直接断网。
+`GCP` 节点单独成组、并从 `手动选择`/`自动选择`/`其他策略` 里用 `exclude-filter` 排除：
+它的延迟极低（实测 0.08s），但会间歇性 `REALITY authentication failed`。一旦让它参与
+`url-test`，它会被选成最快节点，然后整条出口时通时断——这正是一次实测事故的原因：
+`Proxy` 默认曾指向 `自动选择`，重启后自动选中 GCP，随后所有流量改走它并大面积失败。
+
+## 3.5 DeepSeek 走不走直连
+
+查了三个来源，结论是**原来没有**，现在显式加了：
+
+| 来源 | 是否含 DeepSeek |
+| --- | --- |
+| `ruleset.skk.moe` 的 `non_ip/domestic.txt`（883 行）、`direct.txt`（232 行）、`ai.txt`（68 行）、`global.txt`（1289 行） | **全部 0 命中**。`ai.txt` 只覆盖 OpenAI / Claude |
+| Loyalsoldier `clash-rules` 的 `direct.txt` | **有**：`+.deepseek.com`、`+.deepseeksvc.com`（仅此两行，且只在 direct 里） |
+| 我们自己的 `rule_set/sukkaw_ruleset/*` 缓存 | 0 命中 |
+
+没有规则时的实际行为（部署前抓到的日志，426 条）：
+
+```text
+[TCP] dial Proxy (match Match/) 198.18.0.1:50376 --> api.deepseek.com:443 error: ...
+```
+
+即 `api.deepseek.com` 一路落到 `MATCH` → `Proxy`，绕代理一圈。所以在本配置的
+「国内直连」段加了：
+
+```yaml
+  - DOMAIN-SUFFIX,deepseek.com,DIRECT
+  - DOMAIN-SUFFIX,deepseeksvc.com,DIRECT
+```
+
+验证（测试实例 debug 日志）：
+
+```text
+[TCP] ... --> api.deepseek.com:443  match DomainSuffix(deepseek.com) using DIRECT
+[TCP] ... --> chat.deepseek.com:443 match DomainSuffix(deepseek.com) using DIRECT
+```
+
+覆盖 `api.` / `chat.` / `platform.` / `www.` / `cdn.deepseek.com` 等所有子域。
 
 ## 4. 从上游借鉴了什么、没借什么
 
@@ -184,5 +220,7 @@ doas cp -a /etc/mihomo/config.yaml.bak.<ts> /etc/mihomo/config.yaml && doas syst
    若不需要 LAN DNS，改成 `127.0.0.1:53`。
 4. **`127.0.0.1:7890` 连接超时**，而 `<本机 LAN IP>:7890` 正常——疑似本机残留的
    redirect/nft 规则，需要 root 查 `ss -tlnp 'sport = :7890'` 与 `nft list ruleset`。
-5. `rule-providers` 仍带 `proxy: Proxy`：代理全挂时规则集无法刷新（有本地缓存兜底）。
+5. **GCP 免费节点间歇性不可用**：会返回 `REALITY authentication failed`（孤立刻测试 5/5 通过、
+   耗时 0.08s，但跑在主实例里会成片失败）。已隔离成独立组，不进自动优选；要用时手动选。
+6. `rule-providers` 仍带 `proxy: Proxy`：代理全挂时规则集无法刷新（有本地缓存兜底）。
    若想更容易自愈，可去掉 `proxy:` 依赖 `respect-rules`（上游做法）。
