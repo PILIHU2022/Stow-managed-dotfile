@@ -1,19 +1,22 @@
 # =============================================================================
 # config.example.yaml —— config.yaml 的脱敏版本，用于提交到 git。
 #
-# 与本地 config.yaml 的实质差异只有一处：proxy-providers 的订阅 URL 中，
-# token 被替换为 YOUR_SUBSCRIPTION_TOKEN 占位符。真实 token 只存在于
-#   - 本地 mihomo/etc/mihomo/config.yaml（已加入 .gitignore，不进 git）
-#   - 线上 /etc/mihomo/config.yaml
+# 脱敏项（真实值只存在于本地 mihomo/etc/mihomo/config.yaml 与线上
+# /etc/mihomo/config.yaml，两者都被 .gitignore 排除）：
+#   1. proxy-providers.独角兽.url 的机场地址与 token
+#   2. proxies 中 GCP 节点的 server / uuid / reality 公钥
 #
-# 部署：复制本文件到 /etc/mihomo/config.yaml，再把占位符换回真实 token。
+# 部署：cp 本文件为 /etc/mihomo/config.yaml，再把占位符换回真实值。
+#   建议 install -m 0600 -o root -g root，避免订阅 token 与节点凭据被普通用户读取。
 # =============================================================================
 
 # =============================================================================
 # Mihomo 配置文件
 # 资源: https://wiki.metacubex.one/config/
-# 规则集: https://ruleset.skk.moe/ (Sukka) / https://github.com/ACL4SSR/ACL4SSR
-# 最后更新: 2026-07-22
+# 规则集: https://ruleset.skk.moe/ (Sukka)
+# 分组结构: 借鉴 https://github.com/HenryChiao/MIHOMO_YAMLS 的分层与 filter 写法
+#           （只取结构，不套用其整份模板，见 docs/mihomo-config-structure.md）
+# 最后更新: 2026-11-01
 # =============================================================================
 
 # ================================ 端口配置 ====================================
@@ -24,11 +27,20 @@ socks-port: 20172             # SOCKS5 代理端口
 # ================================ 通用设置 ====================================
 allow-lan: true               # 允许局域网连接
 mode: rule                    # 运行模式: rule / global / direct
-log-level: info               # 日志级别（临时调为 info：抓 Apple Music 出口用，确认后改回 warning）
+log-level: warning            # 排障时临时调成 info；常驻 info 会让 journal 日志暴涨
 ipv6: true                    # 启用 IPv6（全局开关）
 
 external-controller: 127.0.0.1:9090   # 外部控制器（Web UI）监听地址
 tcp-concurrent: true                 # 并发 TCP 连接，加速多资源页面加载
+unified-delay: true                  # 用「握手 + 首字节」统一口径测延迟，避免 url-test 误判
+
+# ---- 状态持久化 ----
+# store-selected: 面板里手选的节点/分组写进 cache.db，重启后不回到默认值。
+# store-fake-ip: fake-ip 映射落盘，重启后同一域名仍拿到同一个假 IP，
+#                避免已建立的连接在重启后失配。
+profile:
+  store-selected: true
+  store-fake-ip: true
 
 # ================================ TUN 虚拟网卡 ================================
 # TUN 模式劫持所有系统流量，实现全局代理
@@ -77,7 +89,6 @@ dns:
   enhanced-mode: fake-ip      # DNS 模式: fake-ip（返回虚拟 IP，由 mihomo 代为发起连接）
   respect-rules: true         # 遵循规则路由（域名命中 DIRECT 则用 direct-nameserver 解析）
   fake-ip-range: 198.18.0.1/16  # fake-ip 地址段（不应与真实 IP 冲突）
-  store-fake-ip: true         # 缓存 fake-ip 映射，重复访问无需重新查询 DNS
   use-hosts: false            # 不使用 /etc/hosts（防止 DNS 泄露）
   use-system-hosts: false     # 不使用系统 hosts（防止 DNS 泄露）
 
@@ -92,6 +103,20 @@ dns:
     - '*.msftconnecttest.com'
     - '*.msftncsi.com'
     - localhost.ptlogin2.qq.com
+    # ---- Tailscale ----
+    # tailscaled 给自己的 socket 打 fwmark 0x80000，并安装
+    #   ip rule pref 5210 fwmark 0x80000/0xff0000 lookup main
+    # 让这些连接绕开任何 TUN、直接从物理网卡出去（避免自己套自己）。因此
+    # fake-ip 对它有害：DNS 若返回 198.18.0.9，SYN 却按上面的规则从物理网卡
+    # 发往 198.18.0.9，会永久停在 SYN-SENT，`tailscale up` 于是卡在
+    # controlplane.tailscale.com/machine/register，反复报
+    # "connection attempts aborted by context: context deadline exceeded"。
+    # 让这些域名返回真实 IP（192.200.0.x），tailscaled 的直连才成立；
+    # DERP（derp*.tailscale.com）、log、login 同理，一并豁免。
+    - '+.tailscale.com'
+    - '+.tailscale.io'
+    - '+.tailscale.net'
+    - '+.ts.net'
 
   # ---- 用于解析 DNS 服务器地址的纯 IP DNS ----
   # 当 DoH/DNS 服务器本身需要域名解析时，使用这些 DNS（纯 UDP，不可用 DoH）
@@ -143,69 +168,108 @@ proxies:
     type: direct
     udp: true
 
+  # ---- GCP 免费节点 ----
+  # 来源: /etc/mihomo/profiles/GCP-Free.yaml —— 那是一份**完整的** mihomo 配置
+  # （自带 mixed-port / proxy-groups / rules），不能直接当 proxy-provider 用，
+  # 所以只把其中的 proxies 段原样搬进来，节点名保持不变便于对照。
+  # 真实凭据只写在本地 config.yaml（已 .gitignore），本示例用占位符。
+  - name: "GCP-Reality-443"
+    type: vless
+    server: YOUR_GCP_SERVER_IP
+    port: 443
+    uuid: YOUR_VLESS_UUID
+    network: tcp
+    udp: true
+    tls: true
+    flow: xtls-rprx-vision
+    servername: www.cloudflare.com
+    client-fingerprint: chrome
+    reality-opts:
+      public-key: YOUR_REALITY_PUBLIC_KEY
+      short-id: ""
+
 # ================================ 订阅代理集 ==================================
 proxy-providers:
-  # ---- 提供商: 订阅A ----
-  订阅A:
+  # ---- 提供商: 独角兽 ----
+  独角兽:
     type: http
-    url: 'https://example.com/api/v1/client/subscribe?token=YOUR_SUBSCRIPTION_TOKEN'
+    url: 'https://YOUR_AIRPORT_HOST/api/v1/client/subscribe?token=YOUR_SUBSCRIPTION_TOKEN'
     interval: 3600            # 更新间隔（秒）
-    path: ./profile/provider-a.yaml
+    path: ./profile/Dujiaoshou.yaml
     exclude-filter: '剩余|重置|过期|已用|可用|流量|到期|天数|总额|官网|客服|网站|网址|获取|订阅|机场|下次|版本|官址|备用|联系|邮箱|工单|贩卖|通知|倒卖|防止|国内|地址|频道|无法|说明|使用|提示|特别|访问|支持|教程|关注|更新|作者|加入|家宽|防失联|(?i)use|(?i)total|(?i)expire|(?i)email|(?i)panel|(?i)channel|(?i)author'
     health-check:
       enable: true
-      interval: 180
+      interval: 300
       lazy: true              # 未使用时不对该集合作健康检查
-      url: http://cp.cloudflare.com
+      url: https://www.gstatic.com/generate_204
     override:
-      additional-prefix: "[订阅A] "   # 节点名前缀（便于区分提供商）
+      additional-prefix: "[独角兽] "   # 节点名前缀（便于区分提供商）
       skip-cert-verify: true          # 跳过证书验证（机场节点常用）
       client-fingerprint: chrome      # TLS 指纹伪装 Chrome，避免 CDN 限速
- 
+
+# ================================ 分组模板（YAML 锚点） ========================
+# 借鉴上游的分层思路：把重复的 type/url/interval 收敛成锚点，改一处全组生效。
+BaseUT: &BaseUT {type: url-test, url: 'https://www.gstatic.com/generate_204', interval: 300, tolerance: 50, lazy: true, hidden: true}
+BaseFB: &BaseFB {type: fallback, url: 'https://www.gstatic.com/generate_204', interval: 300, lazy: true}
+
+# 服务组通用选项：默认跟随 Proxy，也可以一键改指到某个地区
+SelectPY: &SelectPY {type: select, proxies: [Proxy, 故障转移, 手动选择, 香港策略, 台湾策略, 日本策略, 新加坡策略, 美国策略, 其他策略, 直连]}
+
+# 节点名过滤：正向命中地区、反向排除机场广告/到期节点。
+# 语法是 Perl 兼容正则（mihomo 支持 lookahead/lookbehind），不是 Go regexp。
+FilterAL: &FilterAL '^(?=.*(?i)(.))(?!.*(剩余|重置|过期|已用|可用|流量|到期|天数|总额|官网|客服|网站|网址|获取|订阅|机场|下次|版本|官址|备用|联系|邮箱|工单|贩卖|通知|倒卖|防止|国内|地址|频道|无法|说明|使用|提示|特别|访问|支持|教程|关注|更新|作者|加入|家宽|防失联|直连|use|total|expire|email|panel|channel|author)).*$'
+FilterHK: &FilterHK '^(?=.*(?i)(香港|🇭🇰|HK|Hong))(?!.*(剩余|到期)).*$'
+FilterTW: &FilterTW '^(?=.*(?i)(台湾|台灣|TW|Taiwan|TPE))(?!.*(剩余|到期)).*$'
+FilterJP: &FilterJP '^(?=.*(?i)(日本|🇯🇵|JP|Japan|NRT|HND|KIX))(?!.*(剩余|到期)).*$'
+FilterSG: &FilterSG '^(?=.*(?i)(新加坡|狮城|獅城|🇸🇬|SG|Sing))(?!.*(剩余|到期)).*$'
+FilterUS: &FilterUS '^(?=.*(?i)(美国|美國|🇺🇸|US|USA|LAX|SJC|JFK|SFO))(?!.*(剩余|到期)).*$'
+# 「其他地区」= 不属于上面任何一组的节点（韩国/欧洲/南美/中东…以及 GCP 节点）
+FilterOT: &FilterOT '^(?!.*(香港|🇭🇰|HK|Hong|台湾|台灣|TW|Taiwan|TPE|日本|🇯🇵|JP|Japan|NRT|HND|KIX|新加坡|狮城|獅城|🇸🇬|SG|Sing|美国|美國|🇺🇸|US|USA|LAX|SJC|JFK|SFO|直连|剩余|到期)).*$'
+
 # ================================ 代理组 ======================================
-# 优先级排序: 手动选择(1) > Proxy(2) > AI(3) > 自动选择(4) > Apple_Service(5)
+# 分层：Proxy(总入口) → 地区策略(手动选) → 地区自动(url-test, hidden) → 节点
+# 所有叶子组 hidden，面板里只剩需要点的条目；include-all 让新机场零改动接入。
 proxy-groups:
-  # 1. 手动选择 - 用户手动在面板中挑选用哪个节点
-  - name: "手动选择"
-    type: select
-    use:
-      - 订阅A
+  # ---------- 总入口 ----------
+  # MATCH 兜底目标。名字沿用 Proxy，是为了不让 cache.db 里的历史选择失效。
+  - {name: "Proxy", type: select, proxies: [自动选择, 手动选择, 故障转移, 香港策略, 台湾策略, 日本策略, 新加坡策略, 美国策略, 其他策略, 直连]}
 
-  # 2. Proxy - 主要代理组（MATCH 兜底目标）
-  - name: "Proxy"
-    type: select
-    proxies:
-      - 手动选择              # 用户可切换到手动选择模式
-      - 自动选择              # 或切换到自动延迟优选模式
-      - 直连                  # 或强制直连
+  # ---------- 自动 / 手动 ----------
+  - {name: "手动选择", type: select, include-all: true, filter: *FilterAL}
+  - {name: "自动选择", <<: *BaseUT, hidden: false, include-all: true, filter: *FilterAL}
 
-  # 3. AI - 国外 AI 服务专用组（ChatGPT/Gemini 等）
-  - name: "AI"
-    type: select
-    proxies:
-      - Proxy
-    use:
-      - 订阅A
+  # 故障转移：按「地区自动」顺序逐个试，第一个活着的不一定是延迟最低的，
+  # 但整组节点全挂时会自动往后切，避免单点故障直接断网。
+  - {name: "故障转移", <<: *BaseFB, proxies: [香港自动, 日本自动, 新加坡自动, 美国自动, 其他策略, 直连]}
 
-  # 4. 自动选择 - 自动选择延迟最低的节点
-  - name: "自动选择"
-    type: url-test
-    use:
-      - 订阅A
-    lazy: true
-    url: 'http://www.cloudflare.com'
-    interval: 180
+  # ---------- 服务专用组 ----------
+  # 默认都跟 Proxy；需要让某个服务单独走地区时，在面板里改这一个组即可。
+  - {name: "AI", <<: *SelectPY}
+  - {name: "流媒体", <<: *SelectPY}
+  - {name: "电报", <<: *SelectPY}
+  - {name: "微软", <<: *SelectPY}
+  - {name: "谷歌", <<: *SelectPY}
+  - {name: "GitHub", <<: *SelectPY}
 
-  # 5. Apple_Service - Apple 服务专用组
-  # 列表顺序即默认值：直连优先。Apple 依据出口 IP 归属地决定 storefront，
-  # 机房出口无法被 Apple 正确定位，会被判为 /us/，CN 账号随即弹
-  # 「发生错误。请刷新页面并重试。」并跳转 /us/。直连放在首位后，无论
-  # cache.db 是否丢失、配置是否重载，Apple 都会走本机 CN 出口。
-  - name: "Apple_Service"
-    type: select
-    proxies:
-      - 直连
-      - Proxy
+  # Apple 依据出口 IP 归属地决定 storefront：机房出口会被判成 /us/，CN 账号
+  # 随即报错。所以直连必须排在首位——无论 cache.db 是否丢失、配置是否重载，
+  # Apple 都走本机 CN 出口。
+  - {name: "Apple_Service", type: select, proxies: [直连, Proxy, 香港策略, 台湾策略, 日本策略, 新加坡策略, 美国策略]}
+
+  # ---------- 地区策略（可见，默认选该地区的自动组） ----------
+  - {name: "香港策略", type: select, include-all: true, filter: *FilterHK, proxies: [香港自动]}
+  - {name: "台湾策略", type: select, include-all: true, filter: *FilterTW, proxies: [台湾自动]}
+  - {name: "日本策略", type: select, include-all: true, filter: *FilterJP, proxies: [日本自动]}
+  - {name: "新加坡策略", type: select, include-all: true, filter: *FilterSG, proxies: [新加坡自动]}
+  - {name: "美国策略", type: select, include-all: true, filter: *FilterUS, proxies: [美国自动]}
+  - {name: "其他策略", type: select, include-all: true, filter: *FilterOT}
+
+  # ---------- 地区自动（hidden，实现细节） ----------
+  - {name: "香港自动", <<: *BaseUT, include-all: true, filter: *FilterHK}
+  - {name: "台湾自动", <<: *BaseUT, include-all: true, filter: *FilterTW}
+  - {name: "日本自动", <<: *BaseUT, include-all: true, filter: *FilterJP}
+  - {name: "新加坡自动", <<: *BaseUT, include-all: true, filter: *FilterSG}
+  - {name: "美国自动", <<: *BaseUT, include-all: true, filter: *FilterUS}
 
 # ================================ 规则集锚点 ==================================
 # YAML 锚点，用于 rule-providers 复用配置
@@ -349,7 +413,7 @@ rules:
   - RULE-SET,reject_domainset,REJECT
   - RULE-SET,reject_non_ip_drop,REJECT-DROP
   - RULE-SET,reject_non_ip_no_drop,REJECT
-  - RULE-SET,reject_ip,REJECT
+  - RULE-SET,reject_ip,REJECT,no-resolve
 
   # ======== [2] 内网 / 局域网 ========
   # 本地网络流量直连（路由器、打印机、NAS 等）
@@ -379,11 +443,28 @@ rules:
   - IP-CIDR,17.0.0.0/8,DIRECT,no-resolve
   # Sukka apple_cdn：使用中国大陆 CDN 的 Apple 域，涵盖 mzstatic 封面图床
   # （is1-5-ssl / a1-5 / s.mzstatic.com）、audio-ssl/aod.itunes.apple.com 音频流
-  # 以及 oscdn、swcdn。该 provider 原本只定义、从未被任何 rule 引用。
+  # 以及 oscdn、swcdn。
   - RULE-SET,apple_cdn,DIRECT
   - RULE-SET,domestic_ip,DIRECT,no-resolve
   - RULE-SET,china_ip,DIRECT,no-resolve
   - IP-CIDR,203.0.113.1/32,DIRECT,no-resolve  # VPS 服务器直连
+
+  # ======== [3.2] Tailscale 直连 ========
+  # 与 dns.fake-ip-filter 里的 tailscale 域名配套：
+  #   * tailscaled 自己的连接带 fwmark，本来就不进 mihomo；这些规则管的是
+  #     浏览器打开登录页（login.tailscale.com）以及其它程序访问 tailnet 的情况。
+  #   * 命中 DIRECT 后，respect-rules 会让 DNS 改用 direct-nameserver（国内 DoH）
+  #     解析，拿到的就是 192.200.0.x 的真实地址，不需要再绕代理。
+  #   * 若要改成走代理（例如所在网络直连 controlplane 不通），把这四条
+  #     DOMAIN-SUFFIX 的 DIRECT 换成 Proxy 即可，同时保留 fake-ip-filter 豁免。
+  - DOMAIN-SUFFIX,tailscale.com,DIRECT
+  - DOMAIN-SUFFIX,tailscale.io,DIRECT
+  - DOMAIN-SUFFIX,tailscale.net,DIRECT
+  - DOMAIN-SUFFIX,ts.net,DIRECT
+  # tailnet 网段（100.64.0.0/10）。正常情况下 tailscaled 的 ip rule 5270
+  # 会先把这些包送去 tailscale0，轮不到 mihomo；这条只是登录前/掉线时的兜底，
+  # 防止 tailnet 地址被 MATCH 误送去代理出口。
+  - IP-CIDR,100.64.0.0/10,DIRECT,no-resolve
 
   # ======== [3.5] 拒绝 QUIC（UDP 443） ========
   # Apple 的 CDN 在 Akamai / Fastly 上，没有可枚举的网段。QUIC 一旦嗅探不出
@@ -402,10 +483,6 @@ rules:
   - DOMAIN-SUFFIX,content.steampowered.com,DIRECT
   - DOMAIN-SUFFIX,steamcontent.com,DIRECT
   - DOMAIN-SUFFIX,steamserver.net,DIRECT
-  - DOMAIN,*.steamcontent.com,DIRECT
-  - DOMAIN,fastly.cdn.steampipe.steamcontent.com,DIRECT
-  - DOMAIN,cdn.fastly.steamstatic.com,DIRECT
-  - DOMAIN,*.fastly.steamstatic.com,DIRECT
   - DOMAIN-SUFFIX,fastly.steamstatic.com,DIRECT
   - DOMAIN,steamcdn-a.akamaihd.net,DIRECT
   - DOMAIN-SUFFIX,cm.steampowered.com,DIRECT
@@ -415,41 +492,55 @@ rules:
   # Apple 服务走 Apple_Service 组（可在面板中选择 代理 或 直连）
   - RULE-SET,apple_services,Apple_Service
 
-  # ======== [6] 微软 ========
-  # 微软全球服务走代理（Bing / Outlook / Office365 / Azure 等）
-  - RULE-SET,microsoft_cdn_non_ip,Proxy
-  - RULE-SET,microsoft_non_ip,Proxy
+  # ======== [6] AI ========
+  # ChatGPT / Gemini / Claude 等 AI 服务走 AI 组
+  - RULE-SET,ai_non_ip,AI
+  # gemini.google.com 也在 google.com 之下，必须在「谷歌」规则之前显式指向 AI
+  - DOMAIN,gemini.google.com,AI
 
-  # ======== [7] CDN 加速 ========
+  # ======== [7] 流媒体 ========
+  # Netflix / Disney+ / YouTube / Spotify 等流媒体走代理
+  - RULE-SET,stream_non_ip,流媒体
+  - RULE-SET,stream_ip,流媒体,no-resolve
+
+  # ======== [8] Telegram ========
+  # Telegram 走代理（国内直连不稳定）
+  - RULE-SET,telegram_non_ip,电报
+  - RULE-SET,telegram_ip,电报,no-resolve
+
+  # ======== [9] 微软 ========
+  # 微软全球服务（Bing / Outlook / Office365 / Azure 等）
+  - RULE-SET,microsoft_cdn_non_ip,微软
+  - RULE-SET,microsoft_non_ip,微软
+
+  # ======== [10] 谷歌 / GitHub ========
+  # 单独成组，方便把开发流量固定到某个地区
+  - DOMAIN-SUFFIX,google.com,谷歌
+  - DOMAIN-SUFFIX,googleapis.com,谷歌
+  - DOMAIN-SUFFIX,gstatic.com,谷歌
+  - DOMAIN-SUFFIX,googleusercontent.com,谷歌
+  - DOMAIN-SUFFIX,ggpht.com,谷歌
+  - DOMAIN-SUFFIX,github.com,GitHub
+  - DOMAIN-SUFFIX,githubusercontent.com,GitHub
+  - DOMAIN-SUFFIX,githubassets.com,GitHub
+  - DOMAIN-SUFFIX,github.io,GitHub
+  - DOMAIN-SUFFIX,ghcr.io,GitHub
+
+  # ======== [11] CDN 加速 ========
   # 全球 CDN 资源走代理获取更优节点
   - RULE-SET,cdn_domainset,Proxy
   - RULE-SET,cdn_non_ip,Proxy
 
-  # ======== [8] 流媒体 ========
-  # Netflix / Disney+ / YouTube / Spotify 等流媒体走代理
-  - RULE-SET,stream_non_ip,Proxy
-  - RULE-SET,stream_ip,Proxy,no-resolve
-
-  # ======== [9] Telegram ========
-  # Telegram 走代理（国内直连不稳定）
-  - RULE-SET,telegram_non_ip,Proxy
-  - RULE-SET,telegram_ip,Proxy,no-resolve
-
-  # ======== [10] AI ========
-  # ChatGPT / Gemini / Claude 等 AI 服务走 AI 组
-  - RULE-SET,ai_non_ip,AI
-  - DOMAIN,gemini.google.com,AI
-
-  # ======== [11] 大文件下载 ========
+  # ======== [12] 大文件下载 ========
   # 软件更新、系统镜像等大文件走代理（利用代理带宽提速）
   - RULE-SET,download_domainset,Proxy
   - RULE-SET,download_non_ip,Proxy
 
-  # ======== [12] 全球其余 ========
+  # ======== [13] 全球其余 ========
   # 未被以上规则匹配的境外域名/服务走代理
   - RULE-SET,global_non_ip,Proxy
 
-  # ======== [13] 兜底 ========
+  # ======== [14] 兜底 ========
   # 所有未被任何规则匹配的流量，默认走 Proxy 组
   # 确保没有流量漏网直连（防止 DNS 泄露和 IP 泄露）
   - MATCH,Proxy
