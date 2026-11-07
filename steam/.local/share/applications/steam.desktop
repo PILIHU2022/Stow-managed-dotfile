@@ -1,0 +1,89 @@
+[Desktop Entry]
+# 用户级覆盖 /usr/share/applications/steam.desktop（同名文件用户级优先）。
+#
+# 目的：只给 Steam 这一个程序注入输入法配置，修「打字快漏字」。
+#
+# 依据：fcitx 官方 Using Fcitx 5 on Wayland → Chromium / Electron 一节
+#   https://fcitx-im.org/wiki/Using_Fcitx_5_on_Wayland
+#   * XWayland 下跑 Chromium/Electron → 与其它 X11 程序相同：GTK_IM_MODULE=fcitx
+#   * 原生 Wayland 下跑               → 必须显式加
+#       --enable-features=UseOzonePlatform --ozone-platform=wayland --enable-wayland-ime
+#     否则 Chromium/CEF 不启用输入法（--enable-wayland-ime 是硬开关，
+#     我在系统 libcef.so 里确认过这个字符串存在）。
+#
+# 作用域为什么只限 Steam：Docs/file-dialog-ime-and-clipboard.md 记录过教训 ——
+# 全局设 GTK_IM_MODULE 会连带改掉 Firefox 的输入法通路（拼音直接上屏）。
+# 桌面入口覆盖只影响 Steam 自己；Steam 启动的游戏是它的子进程，会继承这些变量。
+#
+# SDL_IM_MODULE=fcitx 放在这里而不是会话环境：fcitx 官方原话是
+#   "SDL2-based applications that doesn't default to wayland. Set SDL_IM_MODULE to fcitx"
+# 即只该给「不默认走 Wayland 的 SDL2 程序」。Steam 启动的游戏正是这一类；
+# 若写进会话环境，Wayland 原生的 SDL2 程序会被强行改道，反而出问题。
+# 非 Steam 的 SDL2 游戏，请单独给该程序加 SDL_IM_MODULE=fcitx。
+#
+# 这里是「安全档」：GTK_IM_MODULE + SDL_IM_MODULE。
+#   - 若 Steam 走 XWayland → 正好命中官方推荐，修掉 XIM 的同步漏字。
+#   - 若 Steam 已是原生 Wayland → GTK_IM_MODULE 不生效（GTK 会走内置
+#     text-input），此时需要切到下面注释里的「Wayland 档」。
+# 判断与切换办法见同目录 README.md。
+#
+# 回退：rm ~/.local/share/applications/steam.desktop，或 `stow -D steam`。
+Name=Steam
+Comment=Application for managing and playing games on Steam
+Comment[zh_CN]=管理和进行 Steam 游戏的应用程序
+Exec=/usr/bin/env GTK_IM_MODULE=fcitx SDL_IM_MODULE=fcitx /usr/bin/steam %U
+# Wayland 档（确认 Steam 是原生 Wayland 客户端后再换用这一行）：
+# Exec=/usr/bin/env SDL_IM_MODULE=fcitx /usr/bin/steam --enable-features=UseOzonePlatform --ozone-platform=wayland --enable-wayland-ime %U
+Icon=steam
+Terminal=false
+Type=Application
+Categories=Network;FileTransfer;Game;
+MimeType=x-scheme-handler/steam;x-scheme-handler/steamlink;
+Actions=Store;Community;Library;Servers;Screenshots;News;Settings;BigPicture;Friends;
+PrefersNonDefaultGPU=true
+X-KDE-RunOnDiscreteGpu=true
+
+[Desktop Action Store]
+Name=Store
+Name[zh_CN]=商店
+Exec=/usr/bin/env GTK_IM_MODULE=fcitx SDL_IM_MODULE=fcitx /usr/bin/steam steam://store
+
+[Desktop Action Community]
+Name=Community
+Name[zh_CN]=社区
+Exec=/usr/bin/env GTK_IM_MODULE=fcitx SDL_IM_MODULE=fcitx /usr/bin/steam steam://url/CommunityHome/
+
+[Desktop Action Library]
+Name=Library
+Name[zh_CN]=库
+Exec=/usr/bin/env GTK_IM_MODULE=fcitx SDL_IM_MODULE=fcitx /usr/bin/steam steam://open/games
+
+[Desktop Action Servers]
+Name=Servers
+Name[zh_CN]=服务器
+Exec=/usr/bin/env GTK_IM_MODULE=fcitx SDL_IM_MODULE=fcitx /usr/bin/steam steam://open/servers
+
+[Desktop Action Screenshots]
+Name=Screenshots
+Name[zh_CN]=截图
+Exec=/usr/bin/env GTK_IM_MODULE=fcitx SDL_IM_MODULE=fcitx /usr/bin/steam steam://open/screenshots
+
+[Desktop Action News]
+Name=News
+Name[zh_CN]=新闻
+Exec=/usr/bin/env GTK_IM_MODULE=fcitx SDL_IM_MODULE=fcitx /usr/bin/steam steam://openurl/https://store.steampowered.com/news
+
+[Desktop Action Settings]
+Name=Settings
+Name[zh_CN]=设置
+Exec=/usr/bin/env GTK_IM_MODULE=fcitx SDL_IM_MODULE=fcitx /usr/bin/steam steam://open/settings
+
+[Desktop Action BigPicture]
+Name=Big Picture
+Name[zh_CN]=大屏幕模式
+Exec=/usr/bin/env GTK_IM_MODULE=fcitx SDL_IM_MODULE=fcitx /usr/bin/steam steam://open/bigpicture
+
+[Desktop Action Friends]
+Name=Friends
+Name[zh_CN]=好友
+Exec=/usr/bin/env GTK_IM_MODULE=fcitx SDL_IM_MODULE=fcitx /usr/bin/steam steam://open/friends

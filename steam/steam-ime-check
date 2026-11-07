@@ -1,0 +1,69 @@
+#!/bin/sh
+# steam-ime-check - 体检 Steam 输入法注入是否真的生效（只读，不改任何东西）。
+#
+# 用法：  sh ~/.local/share/applications/../steam-ime-check   或直接
+#         sh <仓库>/steam/steam-ime-check
+#
+# 它回答三个问题：
+#   1. 用户级 desktop 覆盖装了没有、内容对不对、有没有更高优先级的同名项
+#   2. 当前跑着的 Steam/steamwebhelper 进程到底有没有拿到注入的变量
+#   3. Steam 窗口是 XWayland 还是原生 Wayland（决定该用哪一档）
+
+set -u
+
+LIVE="$HOME/.local/share/applications/steam.desktop"
+
+echo "===== 1. desktop 覆盖状态 ====="
+if [ -f "$LIVE" ]; then
+    echo "[OK] 存在: $LIVE"
+    ls -l "$LIVE"
+else
+    echo "[!!] 不存在: $LIVE"
+    echo "     -> 还没 stow：cd <仓库> && stow steam"
+fi
+echo
+echo "--- 实际生效的 Exec ---"
+if [ -f "$LIVE" ]; then
+    grep -m1 '^Exec=' "$LIVE" || echo "[!!] 该文件里没有 Exec= 行"
+else
+    echo "（无覆盖，系统那份会生效：）"
+    grep -m1 '^Exec=' /usr/share/applications/steam.desktop 2>/dev/null
+fi
+
+echo
+echo "--- 同名项与优先级 ---"
+for d in "$HOME/.local/share/applications" "$HOME/.local/share/flatpak/exports/share/applications" \
+         /var/lib/flatpak/exports/share/applications /usr/local/share/applications /usr/share/applications; do
+    if [ -f "$d/steam.desktop" ]; then
+        printf '  %s\n' "$d/steam.desktop"
+    fi
+done
+echo "  (XDG_DATA_DIRS=${XDG_DATA_DIRS:-未设置})"
+echo "  注：~/.local/share/applications 优先级最高，但有些启动器会缓存，需要重新登录。"
+
+echo
+echo "===== 2. 运行中进程的环境变量 ====="
+found=0
+for p in $(pgrep -x steam 2>/dev/null; pgrep -x steamwebhelper 2>/dev/null); do
+    found=1
+    props=$(tr '\0' '\n' < "/proc/$p/environ" 2>/dev/null \
+            | grep -E '^(GTK_IM_MODULE|SDL_IM_MODULE|XMODIFIERS)=' | paste -sd' ' -)
+    printf '  pid %-7s %s\n' "$p" "${props:-（没有相关变量）}"
+done
+[ "$found" = 1 ] || echo "  Steam 没在运行"
+echo
+echo "  期望看到 GTK_IM_MODULE=fcitx（XWayland 档）"
+echo "  若只有 XMODIFIERS -> 注入没生效，通常是 Steam 早就在跑："
+echo "    先完全退出 Steam（托盘里 Quit），再从应用菜单启动，然后重跑本脚本。"
+
+echo
+echo "===== 3. Steam 窗口后端 ====="
+if command -v hyprctl >/dev/null 2>&1; then
+    active=$(hyprctl activewindow 2>/dev/null | grep -E 'class|xwayland' | paste -sd' ' -)
+    echo "  当前活动窗口: ${active:-（没有活动窗口）}"
+    echo "  另：class 含 steam 的窗口："
+    hyprctl clients 2>/dev/null | grep -iE 'class.*steam|xwayland' | sed 's/^/    /' | head -10
+fi
+echo
+echo "  xwayland: 1 = 走 XWayland（用 steam.desktop 档 / 或换 Wayland 档）"
+echo "  xwayland: 0 = 原生 Wayland（steam-wayland.desktop 档才是对的）"

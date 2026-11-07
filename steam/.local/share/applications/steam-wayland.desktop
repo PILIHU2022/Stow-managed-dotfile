@@ -1,0 +1,58 @@
+[Desktop Entry]
+# 「Wayland 档」——当 Steam 仍走 XWayland 且漏字修不掉时改用这一份。
+#
+# 用法：把本文件也 stow 出去后，用下面其中之一切换
+#   cp ~/.local/share/applications/steam-wayland.desktop ~/.local/share/applications/steam.desktop
+# 或直接在 ~/.local/share/applications/steam.desktop 里采用同一行 Exec。
+#
+# 原理：让 Chromium/CEF 脱离 XWayland 的 XIM，改走 Wayland 的 text-input，
+# 这一步必须由 Chromium 自己完成，所以要显式开它的开关：
+#   --enable-features=UseOzonePlatform   启用 Ozone 平台抽象
+#   --ozone-platform=wayland             切到 Wayland 后端
+#   --enable-wayland-ime                 打开输入法支持（CEF 里是硬开关，
+#                                        不开就完全没有输入法）
+# 依据：fcitx 官方 Using Fcitx 5 on Wayland → Chromium / Electron。
+# 注意：Steam 的界面由子进程 steamwebhelper 渲染，Steam 会把参数转发给它，
+# 因此这些开关写在启动行上即可。
+#
+# 代价：Steam 的 GUI 从 XWayland 搬到 Wayland，属于换后端；若出现界面异常，
+# 换回 steam.desktop 即可。
+#
+# 回退：cp 回 steam.desktop，或 rm 本文件后重新 stow。
+Name=Steam (Wayland IME)
+Comment=Steam with native Wayland input method enabled
+Comment[zh_CN]=Steam（Wayland 原生输入法）
+Exec=/usr/bin/env SDL_IM_MODULE=fcitx /usr/bin/steam --enable-features=UseOzonePlatform --ozone-platform=wayland --enable-wayland-ime %U
+Icon=steam
+Terminal=false
+Type=Application
+Categories=Network;FileTransfer;Game;
+MimeType=x-scheme-handler/steam;x-scheme-handler/steamlink;
+Actions=Store;Library;Settings;BigPicture;Friends;
+PrefersNonDefaultGPU=true
+X-KDE-RunOnDiscreteGpu=true
+
+[Desktop Action Store]
+Name=Store
+Name[zh_CN]=商店
+Exec=/usr/bin/env SDL_IM_MODULE=fcitx /usr/bin/steam --enable-features=UseOzonePlatform --ozone-platform=wayland --enable-wayland-ime steam://store
+
+[Desktop Action Library]
+Name=Library
+Name[zh_CN]=库
+Exec=/usr/bin/env SDL_IM_MODULE=fcitx /usr/bin/steam --enable-features=UseOzonePlatform --ozone-platform=wayland --enable-wayland-ime steam://open/games
+
+[Desktop Action Settings]
+Name=Settings
+Name[zh_CN]=设置
+Exec=/usr/bin/env SDL_IM_MODULE=fcitx /usr/bin/steam --enable-features=UseOzonePlatform --ozone-platform=wayland --enable-wayland-ime steam://open/settings
+
+[Desktop Action BigPicture]
+Name=Big Picture
+Name[zh_CN]=大屏幕模式
+Exec=/usr/bin/env SDL_IM_MODULE=fcitx /usr/bin/steam --enable-features=UseOzonePlatform --ozone-platform=wayland --enable-wayland-ime steam://open/bigpicture
+
+[Desktop Action Friends]
+Name=Friends
+Name[zh_CN]=好友
+Exec=/usr/bin/env SDL_IM_MODULE=fcitx /usr/bin/steam --enable-features=UseOzonePlatform --ozone-platform=wayland --enable-wayland-ime steam://open/friends
