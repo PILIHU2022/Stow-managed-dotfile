@@ -1,237 +1,332 @@
+/* ============================================================
+ * Waybar 样式 —— Catppuccin Mocha
+ * 调色板: https://github.com/catppuccin/catppuccin
+ * ============================================================ */
+
+/* ---------- Mocha 调色板 ---------- */
+@define-color base      #1e1e2e;
+@define-color mantle    #181825;
+@define-color crust     #11111b;
+@define-color surface0  #313244;
+@define-color surface1  #45475a;
+@define-color surface2  #585b70;
+@define-color overlay0  #6c7086;
+@define-color overlay1  #7f849c;
+@define-color overlay2  #9399b2;
+@define-color subtext0  #a6adc8;
+@define-color subtext1  #bac2de;
+@define-color text      #cdd6f4;
+@define-color lavender  #b4befe;
+@define-color blue      #89b4fa;
+@define-color sapphire  #74c7ec;
+@define-color sky       #89dceb;
+@define-color teal      #94e2d5;
+@define-color green     #a6e3a1;
+@define-color yellow    #f9e2af;
+@define-color peach     #fab387;
+@define-color maroon    #eba0ac;
+@define-color red       #f38ba8;
+@define-color mauve     #cba6f7;
+@define-color pink      #f5c2e7;
+@define-color flamingo  #f2cdcd;
+@define-color rosewater #f5e0dc;
+
+/* ---------- 全局 ---------- */
 * {
     border: none;
     border-radius: 0;
-    font-family: "Cascaida Mono, HarmonyOS Sans SC";
-    /* font-family: 'CaskaydiaCove NF Bold'; */
+    /* 注意: 字体族必须各自加引号，逗号分隔多个候选 */
+    font-family: "Cascadia Mono NF", "Cascadia Code NF", "Source Han Sans CN", "Noto Sans CJK SC", sans-serif;
     font-weight: bold;
     font-size: 16px;
     min-height: 0;
 }
 
 window#waybar {
-    background: rgba(30, 30, 46, 0);
-    color: #cdd6f4;
-    font-size: 25px
+    background: transparent;
+    color: @text;
 }
 
-tooltip {
-    background: #1e1e2e;
-    opacity: 0.8;
-    border-radius: 16px;
-    border-width: 2px;
-    border-style: solid;
-    border-color: #11111b;
+window#waybar.hidden {
+    opacity: 0.25;
 }
 
-tooltip label{
-    color: #cdd6f4;
+/* ---------- 悬浮提示 ---------- */
+/* GTK 的 tooltip 是独立的 GtkTooltipWindow，CSS 节点名是 tooltip，
+ * 结构: tooltip.background > box > (image + label)。
+ * GTK 主题会先给「窗口层」画一块不透明、带自己圆角(6px)的底，
+ * 和这里的 12px 圆角叠在一起时，气泡下方就会露出一条直角边/方块。
+ * 处理办法: 把窗口层（含 csd 阴影 / decoration）全部清成透明的，
+ * 只让内部 box 承担底色、圆角和描边。 */
+tooltip,
+tooltip.background,
+tooltip.background.csd,
+tooltip decoration,
+tooltip.csd decoration {
+    background-color: transparent;
+    background-image: none;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+    padding: 0;
 }
 
-#workspaces button.icon label{
-    font-size: 30px;
+tooltip > box {
+    background-color: @base;
+    border: 2px solid @surface1;
+    border-radius: 12px;
+    padding: 4px 10px;
+    margin: 0;
 }
 
-#workspaces {
-    background: #1e1e2e;
-    margin: 5px 5px 5px 5px;
-    border-radius: 16px;
-    margin-right: 10px;
-    margin-left: 20px;
-    /* background-color: @blue; */
-    /* border-radius: 0px 10px 10px 0px; */
-    /* margin-right: 20px; */
-    /* padding: 0px 5px 0px 5px; */
-    padding-left: 5px;
-    /* padding-right: 0px; */
-    border: solid 0px #f4d9e1;
+tooltip label {
+    color: @text;
+    font-size: 14px;
     font-weight: normal;
-    font-style: normal;
+}
+
+/* ---------- 模块通用胶囊 ---------- */
+#workspaces,
+#window,
+#cpu,
+#memory,
+#disk,
+#keyboard-state,
+#user,
+#custom-notification,
+#custom-notification-dnd,
+#tray,
+#network,
+#pulseaudio,
+#clock,
+#custom-playerctl,
+#custom-playerlabel,
+#temperature,
+#backlight,
+#battery,
+#idle_inhibitor,
+#custom-lock_screen,
+#custom-power_btn,
+#custom-weather,
+#custom-updates {
+    background-color: alpha(@base, 0.92);
+    border: 1px solid alpha(@surface1, 0.5);
+    border-radius: 14px;
+    padding: 0 10px;
+    margin: 5px 4px;
+}
+
+/* ---------- 工作区 ---------- */
+#workspaces {
+    margin-left: 14px;
+    padding: 0 6px;
 }
 
 #workspaces button {
-    padding: 5px 5px;
-    color: #313244;
-    margin-right: 5px;
-    font-size: 25px;
-}
-
-#workspaces button.active {
-    color: #a6adc8;
-    font-size: 25px;
-}
-
-#workspaces button.urgent {
-    color: #11111b;
-    background: #1e1e2e;
-    border-radius: 16px;
-    font-size: 25px;
+    color: @overlay0;
+    background-color: transparent;
+    padding: 0 7px;
+    margin: 3px 2px;
+    border-radius: 9px;
+    font-size: 17px;
+    transition: background-color 140ms ease, color 140ms ease;
 }
 
 #workspaces button:hover {
-    background: #1e1e2e;
-    color: #282842;
-    border-radius: 16px;
-    font-size: 25px;
+    background-color: alpha(@surface1, 0.65);
+    color: @subtext1;
 }
 
-#tray, #custom-lock_screen, #temperature, #backlight, #custom-launch_wofi, #cpu {
-    border-radius: 16px 0px 0px 10px;
+#workspaces button.active {
+    background-color: alpha(@lavender, 0.92);
+    color: @crust;
 }
 
-#custom-light_dark, #custom-power_btn, #pulseaudio.microphone, #battery, #disk {
-    border-radius: 0px 10px 10px 0px;
-    margin-right: 10px;
+#workspaces button.urgent {
+    background-color: alpha(@red, 0.92);
+    color: @crust;
 }
 
-#custom-power_profile {
-    color: #a6e3a1;
-    border-left: 0px;
-    border-right: 0px;
+#workspaces button.empty {
+    color: alpha(@overlay0, 0.5);
 }
 
-#custom-launch_wofi {
-    color: #89b4fa;
-    margin-left: 10px;
-    border-right: 0px;
-}
-
-#pulseaudio {
-    color: #89b4fa;
-    background: #1e1e2e;
-    border-radius: 10px;
-    border-left: 0px;
-    border-right: 0px;
-}
-
-#pulseaudio.microphone {
-    color: #cba6f7;
-    border-left: 0px;
-    border-right: 0px;
-}
-
-/* #battery { */
-/*     color: #a6e3a1; */
-/*     border-left: 0px; */
-/* } */
-
-#tray {
-    background: #1e1e2e;
-    margin: 5px 5px 5px 5px;
-    border-radius: 16px;
-    padding: 0px 5px;
-    /* border-right: solid 1px; */
-}
-
-#custom-launch_wofi,
-#custom-lock_screen,
-#custom-light_dark,
-#custom-weather,
-#custom-updates,
-#temperature,
-
+/* ---------- 焦点窗口标题 ---------- */
 #window {
-    background: #1e1e2e;
-    /* padding-left: 20px; */
-    padding-left: 0px;
-    /* padding-right: 15px; */
-    border-radius: 16px;
-    /* border-left: solid 1px #282738; */
-    /* border-right: solid 1px #282738; */
-    padding: 0px 10px 0px 10px;
-    margin-left: 20px;
-    margin-top: 5px;
-    margin-bottom: 5px;
+    color: @subtext1;
     font-weight: normal;
-    font-style: normal;
+    padding: 0 12px;
 }
 
+#window.empty {
+    background-color: transparent;
+    border-color: transparent;
+}
+
+/* ---------- 中间区域 ---------- */
 #cpu {
-    background: #1e1e2e;
-    border-radius: 16px;
-    margin: 5px;
-    margin-left: 5px;
-    margin-right: 5px;
-    padding: 0px 10px 0px 10px;
-    font-weight: bold;
+    color: @peach;
 }
 
 #memory {
-    background: #1e1e2e;
-    border-radius: 16px;
-    margin: 5px;
-    margin-left: 5px;
-    margin-right: 5px;
-    padding: 0px 10px 0px 10px;
-    font-weight: bold;
-}
-
-#custom-playerctl, #custom-playerlabel{
-    background: #1e1e2e;
-    border-radius: 16px;
-    margin: 5px;
-    margin-left: 5px;
-    margin-right: 5px;
-    padding: 0px 10px 0px 10px;
-    font-weight: bold;
+    color: @mauve;
 }
 
 #disk {
-    background: #1e1e2e;
-    border-radius: 16px;
-    margin: 5px;
-    margin-left: 5px;
-    margin-right: 5px;
-    padding: 0px 10px 0px 10px;
-    font-weight: bold;
+    color: @teal;
 }
 
-#keyboard-state{
-    background: #1e1e2e;
-    border-radius: 16px;
-    margin: 5px;
-    margin-left: 5px;
-    margin-right: 5px;
-    padding: 0px 10px 0px 10px;
-    font-weight: bold;
+#keyboard-state {
+    color: @green;
 }
 
-#user{
-    background: #1e1e2e;
-    border-radius: 16px;
-    margin: 5px;
-    margin-left:5px;
-    margin-right:5px;
-    padding: 0px 10px 0px 10px;
+#keyboard-state label.unlocked {
+    color: @overlay1;
 }
 
-#custom-data, #network, #pulseaudio {
-    background: #1e1e2e;
-    padding: 5px 5px 5px 5px;
-    margin: 5px 5px 5px 5px;
-    border-radius: 16px;
-    border: solid 0px;
+#keyboard-state label.locked {
+    color: @green;
 }
 
-#clock{
-    background: #1e1e2e;
-    padding: 5px 5px 5px 5px;
-    margin: 5px 5px 5px 5px;
-    border-radius: 16px;
-    border: solid 0px;
-    font-size: 20px
+#user {
+    color: @pink;
+    font-weight: normal;
 }
 
-#custom-Arch-Logo, #custom-switch-wallpaper, #custom-backup-script-launcher{
-    background: #1e1e2e;
-    margin: 5px 5px 5px 5px;
-    padding: 4px 5px 4px 10px;
-    padding-left: 5px;
-    border-radius: 16px;
-    font-size: 25px
+/* ---------- 托盘 & 通知历史 ---------- */
+#tray {
+    padding: 0 8px;
 }
 
-#workspaces, #workspaces button, #workspaces button.active, #workspaces button.empty, #workspaces button.persisent, #workspaces button.special, #workspaces button.visible, #workspaces button.urgent, #workspaces button.hosting-monitor {
-    font-size: 30px;
+#tray > .needs-attention {
+    background-color: alpha(@red, 0.25);
+    border-radius: 8px;
 }
 
-/* 背景色为#1e1e2e */
+#custom-notification {
+    color: @peach;
+    font-size: 15px;
+}
+
+#custom-notification.empty {
+    color: @overlay1;
+}
+
+#custom-notification.unavailable {
+    color: @red;
+}
+
+/* 免打扰开关：默认（enabled）绿色，免打扰黄色，mako 不可用红色 */
+#custom-notification-dnd {
+    color: @green;
+    font-size: 15px;
+}
+
+#custom-notification-dnd.enabled {
+    color: @green;
+}
+
+#custom-notification-dnd.dnd {
+    color: @yellow;
+}
+
+#custom-notification-dnd.unavailable {
+    color: @red;
+}
+
+#custom-notification:hover,
+#custom-notification-dnd:hover,
+#tray:hover {
+    background-color: alpha(@surface1, 0.6);
+}
+
+/* 托盘图标的右键菜单（GTK menu），不写就会是刺眼的白底 */
+#tray menu {
+    background-color: @base;
+    color: @text;
+    border: 1px solid @surface1;
+    border-radius: 10px;
+    padding: 4px;
+}
+
+#tray menu menuitem {
+    border-radius: 8px;
+    padding: 4px 10px;
+}
+
+#tray menu menuitem:hover {
+    background-color: alpha(@surface1, 0.85);
+    color: @text;
+}
+
+#tray menu separator {
+    background-color: @surface1;
+}
+
+/* ---------- 网络 / 音量 / 时钟 ---------- */
+#network {
+    color: @sky;
+    font-weight: normal;
+}
+
+#network.disconnected {
+    color: @red;
+}
+
+#pulseaudio {
+    color: @blue;
+}
+
+#pulseaudio.muted {
+    color: @red;
+}
+
+#clock {
+    color: @lavender;
+    font-size: 17px;
+}
+
+/* ---------- 播放器 ---------- */
+#custom-playerctl,
+#custom-playerlabel {
+    color: @subtext1;
+    font-weight: normal;
+}
+
+#custom-playerctl.Playing,
+#custom-playerlabel.Playing {
+    color: @green;
+}
+
+#custom-playerctl.Paused,
+#custom-playerlabel.Paused {
+    color: @overlay2;
+}
+
+/* ---------- 其它可能用到的模块 ---------- */
+#battery.charging {
+    color: @green;
+}
+
+#battery.warning {
+    color: @yellow;
+}
+
+#battery.critical {
+    color: @red;
+}
+
+#temperature.critical {
+    color: @red;
+}
+
+#custom-lock_screen,
+#custom-power_btn {
+    color: @mauve;
+}
+
+#custom-weather,
+#custom-updates {
+    color: @sapphire;
+    font-weight: normal;
+}

@@ -1,6 +1,8 @@
 {
     "position": "top",
     "layer": "top",
+    // 改 style.css 后自动重载样式（不用重启 waybar）
+    "reload_style_on_change": true,
     "height": 0,
     "margin-top": 0,
     "margin-bottom": 0,
@@ -23,6 +25,10 @@
         "user"
     ],
     "modules-right": [
+        // 通知历史，放在托盘左侧
+        "custom/notification",
+        // 免打扰开关，紧跟通知历史、在托盘之前
+        "custom/notification-dnd",
         "tray",
         // "custom/randwall",
         "network",
@@ -33,17 +39,17 @@
     "hyprland/window": {
         "format": "{}",
         "rewrite": {
-            "(.*) — Mozilla Firefox": "󰈹  $1",
-            "(.*) - Google Chrome": "  $1",
-            "nvim (.*)": "  $1"
+            "(.*) — Mozilla Firefox": "<span size='130%'>󰈹</span>  $1",
+            "(.*) - Google Chrome": "<span size='135%'></span>  $1",
+            "nvim (.*)": "<span size='110%'></span>  $1"
         }
     },
     "clock": {
-        // "format": " {:%H:%M:%S}", // 显示时间(精确到秒)
-        "format": " {:%H:%M}",
+        // "format": "<span size='135%'></span> {:%H:%M:%S}", // 显示时间(精确到秒)
+        "format": "<span size='135%'></span> {:%H:%M}",
         "tooltip": "true",
         "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>",
-        "format-alt": "  {:%Y-%m-%d}",
+        "format-alt": "<span size='125%'></span>  {:%Y-%m-%d}",
         "interval": 1
     },
     "hyprland/workspaces": {
@@ -55,28 +61,51 @@
         "on-scroll-down": "hyprctl dispatch workspace +1",
         "on-click": "activate",
         // "format-icons": {
-        //     "1": "<span font='15'></span>",
-        //     "2": "<span font='15'></span>",
-        //     "3": "<span font='15'></span>",
-        //     "4": "<span font='15'>󰍲</span>",
-        //     "5": "<span font='15'></span>"
+        //     "1": "<span font='15'><span size='140%'></span></span>",
+        //     "2": "<span font='15'><span size='130%'></span></span>",
+        //     "3": "<span font='15'><span size='135%'></span></span>",
+        //     "4": "<span font='15'><span size='135%'>󰍲</span></span>",
+        //     "5": "<span font='15'><span size='130%'></span></span>"
         // },
-        "icon-size":100
+        "icon-size": 100
         // "format": "{icon}",
         // 显示空间不足，暂时弃用
+    },
+    // 通知历史（mako）：左键打开历史列表，中键恢复最近一条，右键清空当前通知
+    "custom/notification": {
+        "format": "{}",
+        "return-type": "json",
+        "exec": "$HOME/.config/waybar/scripts/notification-history.sh status",
+        "interval": 5,
+        "signal": 8,
+        "tooltip": true,
+        "on-click": "$HOME/.config/waybar/scripts/notification-history.sh menu",
+        "on-click-middle": "$HOME/.config/waybar/scripts/notification-history.sh restore",
+        "on-click-right": "$HOME/.config/waybar/scripts/notification-history.sh dismiss"
+    },
+    // 免打扰开关（mako）：左键在「通知开启」与「免打扰」之间切换，颜色见 style.css
+    "custom/notification-dnd": {
+        "format": "{}",
+        "return-type": "json",
+        "exec": "$HOME/.config/waybar/scripts/notification-dnd.sh status",
+        "interval": 5,
+        "signal": 9,
+        "tooltip": true,
+        "on-click": "$HOME/.config/waybar/scripts/notification-dnd.sh toggle"
     },
     "custom/playerctl": {
         "format": "{icon}",
         "return-type": "json",
         "max-length": 64,
-        "exec": "playerctl -a metadata --format '{\"text\": \"{{markup_escape(title)}} - {{artist}}\", \"tooltip\": \"{{playerName}}: {{markup_escape(title)}}\",\"alt\":\"{{status}}\"}' -F",
+        "exec": "playerctl -a metadata --format '{\"text\": \"{{markup_escape(title)}} - {{artist}}\", \"tooltip\": \"{{playerName}}: {{markup_escape(title)}}\",\"alt\":\"{{status}}\",\"class\":\"{{status}}\"}' -F",
         // "exec": "playerctl -a metadata --format '{\"text\": \"{{markup_escape(title)}} - {{artist}}\", \"tooltip\": \"{{playerName}} : {{markup_escape(title)}}\", \"alt\": \"{{status}}\", \"class\": \"{{status}}\"}' -F",
         // "on-click-middle": "playerctl play-pause",
         // "on-click": "playerctl previous",
         // "on-click-right": "playerctl next",
+        // 颜色交给 style.css 的 .Playing / .Paused 规则，避免把色值写死在 JSON 里
         "format-icons": {
-            "Playing": "<span foreground='#E5B9C6'> Playing</span>",
-            "Paused": "<span foreground='#928374'> Paused</span>"
+            "Playing": " Playing",
+            "Paused": " Paused"
         }
     },
     "custom/playerlabel": {
@@ -84,38 +113,35 @@
         "return-type": "json",
         "max-length": 48,
         // "exec": "playerctl -a metadata --format '{\"text\": \"{{markup_escape(title)}} - {{artist}}\", \"tooltip\": \"{{playerName}}: {{markup_escape(title)}}\", \"alt\": \"{{status}}\", \"class\": \"{{status}}\"}' -F",
-        "exec": "playerctl -a metadata --format '{\"text\": \"{{markup_escape(title)}} - {{artist}}\", \"tooltip\": \"{{playerName}}: {{markup_escape(title)}}\"}' -F",
+        "exec": "playerctl -a metadata --format '{\"text\": \"{{markup_escape(title)}} - {{artist}}\", \"tooltip\": \"{{playerName}}: {{markup_escape(title)}}\",\"class\":\"{{status}}\"}' -F"
         // "on-click-middle": "playerctl play-pause",
         // "on-click": "playerctl previous",
-        // "on-click-right": "playerctl next",
-        "format-icons": {
-            "Playing": "<span foreground='#E5B9C6'>  </span>",
-            "Paused": "<span foreground='#928374'>  </span>"
-        }
+        // "on-click-right": "playerctl next"
     },
     "memory": {
-        "format": "󰍛 {}%",
-        "format-alt": "󰍛 {used}/{total} GiB",
+        "format": "<span size='135%'>󰍛</span> {}%",
+        "format-alt": "<span size='135%'>󰍛</span> {used}/{total} GiB",
         "interval": 5
     },
     "cpu": {
-        "format": "󰻠 {usage}%",
-        "format-alt": "󰻠 {avg_frequency} GHz",
+        "format": "<span size='135%'>󰻠</span> {usage}%",
+        "format-alt": "<span size='135%'>󰻠</span> {avg_frequency} GHz",
         "interval": 5
     },
     "disk": {
-        "format": "󰋊 {}%",
-        "format-alt": "󰋊 {used}/{total} GiB",
+        "format": "<span size='110%'>󰋊</span> {}%",
+        "format-alt": "<span size='110%'>󰋊</span> {used}/{total} GiB",
         "interval": 5,
-        "path": "/"
+        // 旧写法 "path": "/" 在 0.15 已废弃（启动时会 warning），改用 paths
+        "paths": ["/"]
     },
     "keyboard-state": {
         "numlock": true,
         "capslock": true,
         "format": "{name} {icon} ",
         "format-icons": {
-            "locked": "",
-            "unlocked": ""
+            "locked": "<span size='110%'></span>",
+            "unlocked": "<span size='110%'></span>"
         }
     },
     "user": {
@@ -124,55 +150,56 @@
         // "avatar": "$HOME/My-avatar.jpg",
         "height": 30,
         "width": 30,
-        "icon": true
+        // 未配置 avatar 时保持 false，否则 waybar 会去加载空图标并报 "Item '': No icon name or pixmap given."
+        "icon": false
     },
     "network": {
-        "format-ethernet":"󰕒{bandwidthUpBits} | 󰇚{bandwidthDownBits}",
-        "tooltip-format": "󰩟:{ipaddr}",
-        "format-alt":"󰩟 : {ipaddr} 󰕒{bandwidthUpBits} | 󰇚{bandwidthDownBits}",
+        "format-ethernet": "<span size='115%'>󰕒</span>{bandwidthUpBits} | <span size='115%'>󰇚</span>{bandwidthDownBits}",
+        "tooltip-format": "<span size='135%'>󰩟</span>:{ipaddr}",
+        "format-alt": "<span size='135%'>󰩟</span> : {ipaddr} <span size='115%'>󰕒</span>{bandwidthUpBits} | <span size='115%'>󰇚</span>{bandwidthDownBits}",
+        "format-disconnected": "<span size='155%'>󰤮</span> 断网",
+        "tooltip-format-disconnected": "网络已断开",
         "interval": 1
-        // "format-disconnected": "  ",
-        // "tooltip-format-disconnected": "  "
-        //"format-linked": " {ifname} (No IP)",
-        //"format-ethernet": " {ifname}: {ipaddr}",
-        //"format-alt": " {ifname}: {ipaddr}/{cidr}",
+        // "format-linked": "<span size='115%'></span> {ifname} (No IP)",
+        //"format-ethernet": "<span size='115%'></span> {ifname}: {ipaddr}",
+        //"format-alt": "<span size='115%'></span> {ifname}: {ipaddr}/{cidr}",
         // "on-click-right": "nm-connection-editor"
     },
     "tray": {
         "icon-size": 20,
-        "spacing": 5
+        "spacing": 6
     },
     "pulseaudio": {
         "format": "{icon} {volume}%",
         "on-click": "pavucontrol",
-        "format-muted": "󰝟",
+        "format-muted": "<span size='160%'>󰝟</span>",
         "format-icons": {
             "default": [
-                "󰕿",
-                "󰖀",
-                "󰕾"
+                "<span size='120%'>󰕿</span>",
+                "<span size='120%'>󰖀</span>",
+                "<span size='120%'>󰕾</span>"
             ]
         },
         "scroll-step": 5
-    },
+    }
     // "custom/backup-script-launcher": {
-    //     "format": "󱓞",
+    //     "format": "<span size='135%'>󱓞</span>",
     //     "on-click": "bash $HOME/.config/hypr/scripts/run-backuppy.sh",
     //     "tooltip-format": "Backup"
     // },
     // "custom/switch-wallpaper": {
-    //     "format": "󰸉",
-    //     "on-click" : "bash $HOME/.config/hypr/scripts/swww_randomize.sh -m ~/Desktop/My-Wallpapers",
+    //     "format": "<span size='135%'>󰸉</span>",
+    //     "on-click": "bash $HOME/.config/hypr/scripts/swww_randomize.sh -m ~/Desktop/My-Wallpapers",
     //     "tooltip-format": "Change Wallpaper"
-    },
+    // },
     // "custom/Arch-Logo": {
-    //     "format": "󰣇"
+    //     "format": "<span size='135%'>󰣇</span>"
     // },
     // "custom/Weather": {
     //     "format": "{}",
     //     "return-type": "json",
-    //     "exec": "$HOME/.config/hypr/waybar/scripts/weather.sh 'Dongguan' 2 > /dev/null",
+    //     "exec": "$HOME/.config/waybar/scripts/weather.sh 'Dongguan' 2 > /dev/null",
     //     "interval": 300,
     //     "tooltip": true
-    }
+    // }
 }
