@@ -1,0 +1,11 @@
+# satty 配置（Stow 部署到 ~/.config/satty/config.toml）
+
+[general]
+# 复制图片交给 wl-copy 常驻进程完成。
+#
+# satty 默认不设置 copy-command，此时它会用 GTK 自带的剪贴板：
+# 剪贴板数据由 satty 进程自己托管，所以关闭 satty 窗口后内容立刻消失，
+# 再粘贴就是空的（窗口开着时则一切正常）。
+# 指定 wl-copy 后，PNG 会通过标准输入交给 wl-copy 后台进程，
+# satty 退出后剪贴板仍然可用。
+copy-command = "wl-copy"
