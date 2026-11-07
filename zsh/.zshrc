@@ -102,6 +102,14 @@ zi light zsh-users/zsh-completions
 ### Run compinit
 zicompinit
 
+### 1.5 本地补丁：修复 zsh 5.9.2 `_gpg` 在 `gpg -u` 补全里把子钥指纹错配给
+### 下一把密钥 UID 的问题（现象：选中日常密钥却插入冷备密钥的签名子钥指纹）。
+### 这里用 source + compdef 覆盖，而不是往 fpath 加目录——仓库目录组可写，
+### 进 fpath 会触发 compinit 的 "insecure directories" 警告。
+if [[ -r "${ZDOTDIR:-$HOME}/.config/zsh/completions/gpg-completion-fix.zsh" ]]; then
+  source "${ZDOTDIR:-$HOME}/.config/zsh/completions/gpg-completion-fix.zsh"
+fi
+
 ### 2. Load fzf before fzf-tab (fzf-tab must be last to bind ^I)
 eval "$(fzf --zsh)"
 
