@@ -49,7 +49,16 @@ ActiveByDefault=True
 # resetStateWhenFocusIn=No
 # 共享输入状态
 # ShareInputState=No
-# 在程序中显示预编辑文本
+# 在程序中显示预编辑文本（官方译名；默认 True）
+#   True  = 把组字串交给程序自己画。支持 client preedit 的程序（Firefox、Steam
+#           等）会在输入框里就地显示拼音，fcitx5 自己不再多画一行 —— 单行模式。
+#   False = fcitx5 自己画组字串，表现为候选框上方另外多出的一行 —— 两行模式。
+# 注意：fcitx5 5.1.23 没有 PreeditType / 单行多行开关（已核对
+# libFcitx5Core.so 的选项表，classicui.conf 只含配色·字体·DPI），
+# 「两行」只有这一个成因，所以保持默认 True 即为全局单行。
+# 代价：SDL2 程序（星露谷）不像 Firefox 那样渲染 client preedit，
+# 因此这类程序里不会显示拼音正文，只留候选框；要让它显示拼音就必须
+# 改成 False，那会同时把两行模式带回来。
 # PreeditEnabledByDefault=True
 # 切换输入法时显示输入法信息
 # ShowInputMethodInformation=True
