@@ -5,7 +5,7 @@
 #   /usr/bin/pinentry → pinentry-gnome3 → gcr-prompter）。它只会给出机器标识：
 #     * OpenPGP : SETDESC 首行“请输入密码以解锁 OpenPGP 私钥：”，随后 %22UID%22
 #                 和“255 位 EDDSA 密钥，标识 0123456789ABCDEF”这类内容
-#     * SSH     : SETDESC 首行“请输入 ssh 密钥”，随后 SHA256:jmTwL7E91/… 指纹
+#     * SSH     : SETDESC 首行“请输入 ssh 密钥”，随后 SHA256:PLACEHOLDER_FINGERPRINT 指纹
 # 本脚本夹在 gpg-agent 和真正的 pinentry 之间，按两张配置表改写 SETDESC：
 #   ~/.config/pinentry/names.conf  密钥标识 → 显示名称（可加 ssh: / gpg: 场景前缀）
 #   ~/.config/pinentry/text.conf   首行说明里的字面文字修正（例如 ssh → SSH）
