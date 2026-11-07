@@ -564,3 +564,10 @@ hl.window_rule({
   move = "20 monitor_h-120",
   float = true,
 })
+
+-- Waybar 通知历史查看器（zenity --text-info）浮动显示，避免被平铺
+hl.window_rule({
+  name = "float waybar notification viewer",
+  match = { title = "通知历史" },
+  float = true,
+})
