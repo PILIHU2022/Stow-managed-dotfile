@@ -265,5 +265,34 @@ return {
       },
       ui = { code_action = " ", devicon = true, title = true, kind = {} },
     },
+    config = function(_, opts)
+      require("lspsaga").setup(opts)
+
+      -- 兼容 Neovim 0.12+：apply_text_edits 现在要求带 annotationId 的
+      -- AnnotatedTextEdit 同时传入 changeAnnotations（LSP 3.18）。
+      -- lspsaga 的 rename handler 只传 edits，丢掉了 result.changeAnnotations，
+      -- 会报 "change_annotations must be provided for annotated text edits"。
+      -- 这里在缺少注解信息时剥掉 annotationId 再应用，效果与旧版一致。
+      local apply_text_edits = vim.lsp.util.apply_text_edits
+      vim.lsp.util.apply_text_edits = function(edits, bufnr, encoding, annotations)
+        if not annotations and edits then
+          local stripped, has_annotation = {}, false
+          for i, edit in ipairs(edits) do
+            if edit.annotationId then
+              has_annotation = true
+              local copy = vim.tbl_extend("force", {}, edit)
+              copy.annotationId = nil
+              stripped[i] = copy
+            else
+              stripped[i] = edit
+            end
+          end
+          if has_annotation then
+            edits = stripped
+          end
+        end
+        return apply_text_edits(edits, bufnr, encoding, annotations)
+      end
+    end,
   },
 }
