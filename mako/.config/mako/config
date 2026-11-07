@@ -14,12 +14,30 @@ sort=-time
 actions=1
 history=1
 
+# 左键：执行通知的默认动作，并把焦点切回发通知的程序（脚本里用 hyprctl 聚焦）
+on-button-left=exec bash $HOME/.config/mako/scripts/mako-click.sh "$id"
+# 右键：展开/收起通知，看被省略的完整内容（展开后的高度见文件结尾的 [mode=expanded]）
+on-button-right=exec makoctl mode -t expanded
+# 中键：直接关闭当前通知
+on-button-middle=dismiss
+
 background-color=#1e1e2e
 text-color=#cdd6f4
 border-color=#89b4fa
 progress-color=over #313244
 
-on-notify=exec mpv /usr/share/sounds/freedesktop/stereo/message.oga
+# 通知提示音：非免打扰时播放（脚本里再查一次 mode 兜底，见 scripts/notify-sound.sh）
+on-notify=exec $HOME/.config/mako/scripts/notify-sound.sh
 
 [grouped]
 format=<b>%s</b>\n%b
+
+# 右键展开模式：只放大高度上限，短消息仍然按内容收缩
+[mode=expanded]
+height=1000
+
+# 免打扰模式：隐藏所有通知，由 waybar 的通知按钮用 `makoctl mode -a/-r do-not-disturb` 切换。
+# on-notify 在通知“打开/显示”时触发，invisible 后可能根本不再触发；
+# 提示音另由 notify-sound.sh 查询当前 mode 兜底，保证免打扰期间绝不发声。
+[mode=do-not-disturb]
+invisible=1
