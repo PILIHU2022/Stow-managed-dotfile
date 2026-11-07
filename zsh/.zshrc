@@ -55,7 +55,17 @@ alias waybars='waybar -s ~/.config/hypr/waybar/style.css'
 alias lst="ls --tree --ignore-glob='.git'"
 alias fontpreview="fontpreview --preview-text 'ABCDEFGHIJKLM\nNOPQRSTUVWXYZ\nabcdefghijklm\nnopqrstuvwxyz\n1234567890\n!@$\%(){}[]\n我能吞下玻璃而不伤身体。'"
 alias mountex="doas mount -t exfat -o uid=$(id -u),gid=$(id -g),dmask=000,fmask=000"
-alias dsh="ssh dsh@127.0.0.1 'dsh web'"
+# dsh：启动 DeepSeek Harness 时注入专用 Git 身份。
+# 用函数而非别名：变量只作用于本次 dsh 进程（不污染当前 shell），原样转发参数，
+# 并用 command 明确调用外部 dsh，避免与同名函数递归。
+function dsh() {
+    GIT_AUTHOR_NAME='DeepSeek Harness' \
+    GIT_AUTHOR_EMAIL='noreply@deepseek.com' \
+    GIT_COMMITTER_NAME='DeepSeek Harness' \
+    GIT_COMMITTER_EMAIL='noreply@deepseek.com' \
+    command dsh "$@"
+}
+# alias dsh="ssh dsh@127.0.0.1 'dsh web'"
 
 # For Powerlevel10k
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
