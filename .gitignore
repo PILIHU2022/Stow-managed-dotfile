@@ -13,9 +13,6 @@
 # Ignore aria2's runtime session lock.
 **/session.lock
 
-# Ignore compiled LD_PRELOAD shims (built with make, machine specific).
-**/*.so
-
 # Ignore mihomo runtime data: geo databases (re-downloaded from geox-url),
 # proxy-provider snapshots (overwritten on every subscription refresh) and
 # rule-set caches (downloaded at runtime under the config directory).
@@ -44,3 +41,14 @@
 *.bmp
 *.ico
 *.svg
+
+# 脱敏暂存区（备份、脚本、venv），绝不能提交。
+.dsh-sanitize/
+
+# DSH 遗留的 scratch / 审计转储目录。
+.dsh-loyal-tmp/
+**/.codewhale/
+
+# aria2 运行时重建的 DHT 路由表与二进制配置归档。
+**/dht*.dat
+**/*.tgz
