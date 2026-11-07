@@ -61,7 +61,7 @@ sudo bash /home/Projects/Stow-Dotfile/docs/fix-workspace-permissions.sh
 ```console
 $ getent passwd user user2 dsh
 user:x:1000:998::/home/user:/usr/bin/zsh
-user2:x:1001:1003::/home/user:/usr/bin/zsh      # ← 注意：大小写不同的另一个老账号
+user2:x:1001:1003::/home/user2:/usr/bin/zsh      # ← 注意：另一历史账号（原名与上一行仅大小写不同）
 dsh:x:1002:1005::/home/dsh:/usr/bin/zsh
 
 $ getent group 998 1005 1006
@@ -74,10 +74,10 @@ agent:x:1006:user,dsh
 | --- | --- | --- | --- | --- | --- |
 | `user` | 1000 | `wheel`(998) | `agent`(1006) | `/usr/bin/zsh` | `/home/user` |
 | `dsh` | 1002 | `dsh`(1005) | `agent`(1006)、`wheel`(998) | `/usr/bin/zsh` | `/home/dsh` |
-| `user2` | 1001 | 1003 | — | `/usr/bin/zsh` | `/home/user` |
+| `user2` | 1001 | 1003 | — | `/usr/bin/zsh` | `/home/user2` |
 
-> ⚠️ **坑**：本机同时存在 `user`(1000)、`user2`(1001)，以及 `/home/user → /home/user` 这个软链接。
-> 写脚本、写 sudoers、`chown` 时务必区分大小写，`sudo chown -R user:...` 这种写法会直接失败或改错对象。
+> ⚠️ **坑**：本机同时存在 `user`(1000)、`user2`(1001)，以及 `/home/user-old → /home/user` 这个软链接。
+> 写脚本、写 sudoers、`chown` 时务必精确匹配用户名（大小写不同就是另一个账号），`sudo chown -R user:...` 写错会直接失败或改错对象。
 
 ### 2.2 目录与权限实测
 
