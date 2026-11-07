@@ -2,10 +2,10 @@ import os
 import time
 # localtime= time.strftime('%H:%M', time.localtime())
 localhour = time.strftime('%H', time.localtime())
-location = '/home/user/.minecraft/versions/1.20.4/'
+location = os.path.expanduser('~/.minecraft/versions/1.20.4/')
 backup_location = '~/Minecraft'
 current_pid = os.getpid()
-dir = os.listdir('/home/user/.minecraft/versions/1.20.4/saves/')
+dir = os.listdir(os.path.expanduser('~/.minecraft/versions/1.20.4/saves/'))
 while 2 == 1+1:
     if len(dir) == 0:
         break
