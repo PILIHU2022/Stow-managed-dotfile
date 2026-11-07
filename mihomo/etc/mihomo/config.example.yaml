@@ -5,6 +5,7 @@
 # /etc/mihomo/config.yaml，两者都被 .gitignore 排除）：
 #   1. proxy-providers.独角兽.url 的机场地址与 token
 #   2. proxies 中 GCP 节点的 server / uuid / reality 公钥
+#   3. proxy-providers.良心云.url 的订阅主机与 token
 #
 # 部署：cp 本文件为 /etc/mihomo/config.yaml，再把占位符换回真实值。
 #   建议 install -m 0600 -o root -g root，避免订阅 token 与节点凭据被普通用户读取。
@@ -16,7 +17,7 @@
 # 规则集: https://ruleset.skk.moe/ (Sukka)
 # 分组结构: 借鉴 https://github.com/HenryChiao/MIHOMO_YAMLS 的分层与 filter 写法
 #           （只取结构，不套用其整份模板，见 docs/mihomo-config-structure.md）
-# 最后更新: 2026-11-01
+# 最后更新: 2026-11-07（订阅调整；国产 AI 直连；引入 Loyalsoldier 去广告）
 # =============================================================================
 
 # ================================ 端口配置 ====================================
@@ -187,6 +188,10 @@ proxies:
     reality-opts:
       public-key: YOUR_REALITY_PUBLIC_KEY
       short-id: ""
+      # Xray 26.9.8+ 的 Reality 服务端要求客户端 ClientHello 携带
+      # X25519MLKEM768 key share；mihomo 默认会剔除，缺这一行会表现为
+      # "REALITY authentication failed" / 客户端一直超时。
+      support-x25519mlkem768: true
 
 # ================================ 订阅代理集 ==================================
 proxy-providers:
@@ -206,6 +211,30 @@ proxy-providers:
       additional-prefix: "[独角兽] "   # 节点名前缀（便于区分提供商）
       skip-cert-verify: true          # 跳过证书验证（机场节点常用）
       client-fingerprint: chrome      # TLS 指纹伪装 Chrome，避免 CDN 限速
+
+  # ---- 提供商: 良心云（示例） ----
+  # 同一 URL 按 UA 嗅探出三种返回：非 Clash UA → base64 链接；「通用 Clash」UA
+  # （裸 clash / ClashX / &flag=clash）→ 假 YAML（5 个 127.0.0.1:65535 的 ss 占位节点）；
+  # 只有 Clash-Meta/Verge 系 UA 才是真 YAML。所以 header 必须显式写，且 exclude-filter
+  # 末尾加 |客户端|代理软件 兜底假节点。真实地址见本地 config.yaml（已脱敏）。
+  良心云:
+    type: http
+    url: 'https://YOUR_LIANGXIN_HOST/api/v1/liangxin?OwO=YOUR_SUBSCRIPTION_TOKEN'
+    interval: 3600            # 更新间隔（秒）
+    path: ./profile/Liangxin.yaml
+    header:                   # 关键：伪装 Clash Meta/Verge 客户端，否则拿不到真 YAML
+      User-Agent:
+        - 'clash-verge/v2.0.0'
+    exclude-filter: '剩余|重置|过期|已用|可用|流量|到期|天数|总额|官网|客服|网站|网址|获取|订阅|机场|下次|版本|官址|备用|联系|邮箱|工单|贩卖|通知|倒卖|防止|国内|地址|频道|无法|说明|使用|提示|特别|访问|支持|教程|关注|更新|作者|加入|家宽|防失联|(?i)use|(?i)total|(?i)expire|(?i)email|(?i)panel|(?i)channel|(?i)author|客户端|代理软件'
+    health-check:
+      enable: true
+      interval: 300
+      lazy: true              # 未使用时不对该集合作健康检查
+      url: https://www.gstatic.com/generate_204
+    override:
+      additional-prefix: "[良心云] "   # 节点名前缀（避免与其他 provider 重名）
+      skip-cert-verify: true          # 跳过证书验证（机场节点常用）
+      client-fingerprint: chrome      # TLS 指纹伪装 Chrome
 
 # ================================ 分组模板（YAML 锚点） ========================
 # 借鉴上游的分层思路：把重复的 type/url/interval 收敛成锚点，改一处全组生效。
@@ -306,6 +335,22 @@ rule-providers:
     <<: *RuleSet_classical
     url: https://ruleset.skk.moe/Clash/ip/reject.txt
     path: ./rule_set/sukkaw_ruleset/reject_ip.txt
+
+  # ---- 去广告：Loyalsoldier/clash-rules（与 skk 互补，见 docs 3.6 节）----
+  # 注意：release 分支的 reject.txt 不是纯文本，而是 YAML payload：
+  #   payload:
+  #     - '+.0.avmarket.rs'
+  # 所以必须 behavior: domain + format: yaml（写成 format: text 会解析失败）。
+  # 与 skk reject_domainset 实测对比：Loy 199,133 条 / skk 149,448 条 /
+  # 重叠 135,769 条 → 并集净增 63,364 条。
+  loyalsoldier_reject:
+    type: http
+    behavior: domain
+    format: yaml
+    url: 'https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/reject.txt'
+    path: ./rule_set/loyalsoldier/reject.yaml
+    interval: 86400
+    proxy: Proxy
 
   # ---- CDN 加速 ----
   cdn_domainset:
@@ -419,6 +464,8 @@ rules:
   - RULE-SET,reject_non_ip_drop,REJECT-DROP
   - RULE-SET,reject_non_ip_no_drop,REJECT
   - RULE-SET,reject_ip,REJECT,no-resolve
+  # Loyalsoldier 去广告（与上面 skk 的拦截表互补；放最后，重叠域名保持原 REJECT/REJECT-DROP 行为）
+  - RULE-SET,loyalsoldier_reject,REJECT
 
   # ======== [2] 内网 / 局域网 ========
   # 本地网络流量直连（路由器、打印机、NAS 等）
@@ -435,6 +482,27 @@ rules:
   # api.deepseek.com 会一路落到 MATCH → Proxy（实测日志里就是 match Match/）。
   - DOMAIN-SUFFIX,deepseek.com,DIRECT
   - DOMAIN-SUFFIX,deepseeksvc.com,DIRECT
+  # ---- 国产 AI：直连（2026-11-07 补充） ----
+  # sukka 的 domestic(884 行) / direct(232) / ai(68) / global(1289) 四张表都不含
+  # 这些国产 AI 域名，不显式加就一路落到 MATCH → Proxy（实测 qianwenai.com：
+  #   [TCP] ... --> qianwenai.com:443 match Match using Proxy[[良心云] ...]）。
+  # 已由 domestic 表覆盖、不必重复加的：通义网页（tongyi.aliyun.com ← aliyun.com）、
+  # 阿里百炼（dashscope.aliyuncs.com ← aliyuncs.com）、豆包（doubao.com）、
+  # 元宝/混元（*.tencent.com）、文心（*.baidu.com）。
+  # 有意不覆盖的：Qwen 国际版 chat.qwen.ai（香港）/ qwen.ai（英国）——出海服务，
+  # 保持走代理，避免国内直连绕远。
+  # 下列域名实测都解析到国内 IP（阿里云 / 火山引擎 / 电信）：
+  - DOMAIN-SUFFIX,qianwenai.com,DIRECT      # 通义千问
+  - DOMAIN-SUFFIX,kimi.com,DIRECT           # Kimi（月之暗面）
+  - DOMAIN-SUFFIX,moonshot.cn,DIRECT        # Kimi 国内站
+  - DOMAIN-SUFFIX,bigmodel.cn,DIRECT        # 智谱清言
+  - DOMAIN-SUFFIX,chatglm.cn,DIRECT         # 智谱清言
+  - DOMAIN-SUFFIX,minimaxi.com,DIRECT       # MiniMax
+  - DOMAIN-SUFFIX,hailuoai.com,DIRECT       # 海螺 AI（MiniMax）
+  - DOMAIN-SUFFIX,stepfun.com,DIRECT        # 阶跃星辰
+  - DOMAIN-SUFFIX,baichuan-ai.com,DIRECT    # 百川智能
+  - DOMAIN-SUFFIX,sensetime.com,DIRECT      # 商汤
+  - DOMAIN-SUFFIX,lingyiwanwu.com,DIRECT    # 零一万物
   - RULE-SET,apple_cn_non_ip,DIRECT
   # ---- Apple Music：锁定中国大陆 storefront ----
   # Apple 依据「出口 IP 归属地」选择 storefront。music.apple.com 原本被
